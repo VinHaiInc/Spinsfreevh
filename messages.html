@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pesan - VinHai</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        #captcha-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+        #captcha-modal.show {
+            display: flex;
+        }
+        .message-item {
+            transition: background-color 0.3s ease;
+        }
+        .message-item.unread {
+            background-color: #e0f7fa;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-100 to-gray-200 min-h-screen flex flex-col font-sans">
+    <div id="captcha-modal">
+        <div class="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full">
+            <h3 class="text-lg font-semibold mb-4">Verifikasi Bukan Robot</h3>
+            <p id="captcha-question" class="mb-4"></p>
+            <input type="number" id="captcha-answer" class="w-full p-2 border rounded-lg mb-4" placeholder="Jawaban">
+            <button onclick="verifyCaptcha()" class="bg-blue-600 text-white w-full p-2 rounded-lg hover:bg-blue-700">Verifikasi</button>
+            <p id="captcha-error" class="text-red-600 mt-2 hidden">Jawaban salah! Sisa percobaan: <span id="captcha-attempts"></span></p>
+        </div>
+    </div>
+    <div id="banned-message" class="hidden container mx-auto max-w-3xl p-8 bg-red-100 rounded-2xl shadow-xl mt-8 text-center">
+        <h2 class="text-2xl font-bold text-red-800 mb-4">Akun Anda Diblokir</h2>
+        <p id="banned-info" class="text-lg text-red-600"></p>
+    </div>
+    <div id="main-content" class="container mx-auto max-w-3xl p-8 bg-white rounded-2xl shadow-xl flex-1 mt-8 hidden">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-800">Pesan</h1>
+            <div id="coin-info" class="text-lg font-semibold text-gray-700"></div>
+        </div>
+        <div class="flex gap-4 mb-6">
+            <button onclick="deleteReadMessages()" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center gap-2">
+                <i class="fas fa-trash"></i> Hapus Pesan yang Dibaca
+            </button>
+            <button onclick="markAllMessagesAsRead()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
+                <i class="fas fa-check-double"></i> Baca Semua Pesan
+            </button>
+        </div>
+        <div id="message-list" class="space-y-4"></div>
+        <div class="mt-8">
+            <a href="index.html"><button class="bg-purple-600 text-white w-full p-3 rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2">
+                <i class="fas fa-arrow-left"></i> Kembali ke Gacha
+            </button></a>
+        </div>
+    </div>
+    <footer class="text-center text-sm py-6 bg-gray-800 text-white">© 2025 VinHai Inc. All Rights Reserved. Version 1.0 Beta</footer>
+
+    <script>
+        let messages = JSON.parse(localStorage.getItem('messages')) || [
+            { id: 1, title: "Selamat Datang!", content: "Selamat bergabung di Gacha Game VinHai! Nikmati event mingguan kami!", timestamp: new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }), read: false }
+        ];
+        let captchaAttempts = parseInt(localStorage.getItem('captchaAttempts')) || 3;
+        let bannedUntil = parseInt(localStorage.getItem('bannedUntil')) || 0;
+        let captchaCallback = null;
+        let coins = parseInt(localStorage.getItem('coins')) || 0;
+
+        // Inisialisasi halaman
+        checkBanStatus();
+        if (!isBanned()) {
+            showCaptcha(() => {
+                document.getElementById('main-content').classList.remove('hidden');
+                updateCoinDisplay();
+                displayMessages();
+            });
+        }
+
+        // Fungsi untuk menampilkan jumlah koin
+        function updateCoinDisplay() {
+            document.getElementById('coin-info').innerHTML = `<i class="fas fa-coins mr-2 text-yellow-500"></i> Koin: ${coins}`;
+        }
+
+        // Fungsi untuk memeriksa status banned
+        function checkBanStatus() {
+            if (isBanned()) {
+                document.getElementById('banned-message').classList.remove('hidden');
+                let bannedTime = new Date(bannedUntil);
+                document.getElementById('banned-info').textContent = `Anda diblokir hingga ${bannedTime.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}`;
+            } else {
+                document.getElementById('main-content').classList.remove('hidden');
+            }
+        }
+
+        // Fungsi untuk memeriksa apakah pengguna diblokir
+        function isBanned() {
+            return bannedUntil > Date.now();
+        }
+
+        // Fungsi untuk menampilkan CAPTCHA
+        function showCaptcha(callback) {
+            if (isBanned()) return;
+            captchaCallback = callback;
+            let a = Math.floor(Math.random() * 10) + 1;
+            let b = Math.floor(Math.random() * 10) + 1;
+            document.getElementById('captcha-question').textContent = `${a} + ${b} = ?`;
+            document.getElementById('captcha-modal').classList.add('show');
+            document.getElementById('captcha-answer').value = '';
+            document.getElementById('captcha-error').classList.add('hidden');
+            document.getElementById('captcha-attempts').textContent = captchaAttempts;
+        }
+
+        // Fungsi untuk memverifikasi CAPTCHA
+        function verifyCaptcha() {
+            let answer = parseInt(document.getElementById('captcha-answer').value);
+            let question = document.getElementById('captcha-question').textContent;
+            let correctAnswer = eval(question.split(' =')[0]);
+            if (answer === correctAnswer) {
+                captchaAttempts = 3;
+                localStorage.setItem('captchaAttempts', captchaAttempts);
+                document.getElementById('captcha-modal').classList.remove('show');
+                if (captchaCallback) captchaCallback();
+            } else {
+                captchaAttempts--;
+                localStorage.setItem('captchaAttempts', captchaAttempts);
+                if (captchaAttempts <= 0) {
+                    bannedUntil = Date.now() + 24 * 60 * 60 * 1000; // 1 hari
+                    localStorage.setItem('bannedUntil', bannedUntil);
+                    localStorage.setItem('captchaAttempts', 3);
+                    checkBanStatus();
+                    document.getElementById('captcha-modal').classList.remove('show');
+                } else {
+                    document.getElementById('captcha-error').classList.remove('hidden');
+                    document.getElementById('captcha-attempts').textContent = captchaAttempts;
+                }
+            }
+        }
+
+        // Fungsi untuk menampilkan daftar pesan
+        function displayMessages() {
+            let messageList = document.getElementById('message-list');
+            messageList.innerHTML = '';
+            if (messages.length === 0) {
+                messageList.innerHTML = '<p class="text-gray-600">Belum ada pesan.</p>';
+                return;
+            }
+            messages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            messages.forEach(message => {
+                let messageDiv = document.createElement('div');
+                messageDiv.className = `message-item p-4 rounded-lg shadow-md ${message.read ? 'bg-gray-100' : 'unread'}`;
+                let content = message.content.length > 100 && !message.read ? 
+                    `${message.content.substring(0, 100)}... <button onclick="toggleReadMore(${message.id})" class="text-blue-600 hover:underline">Baca Selengkapnya</button>` : 
+                    message.content;
+                if (message.content.length > 100 && message.read) {
+                    content += ` <button onclick="toggleReadMore(${message.id})" class="text-blue-600 hover:underline">Sembunyikan</button>`;
+                }
+                messageDiv.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-lg font-semibold text-gray-800">${message.title}</h3>
+                        <span class="text-sm text-gray-500">${message.timestamp}</span>
+                    </div>
+                    <p id="message-content-${message.id}" class="text-gray-600 mt-2">${content}</p>
+                    ${!message.read ? `<button onclick="markMessageAsRead(${message.id})" class="mt-2 bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700 flex items-center gap-2"><i class="fas fa-check"></i> Baca</button>` : ''}
+                `;
+                messageList.appendChild(messageDiv);
+            });
+        }
+
+        // Fungsi untuk menandai pesan sebagai dibaca
+        function markMessageAsRead(id) {
+            messages = messages.map(message => 
+                message.id === id ? { ...message, read: true } : message
+            );
+            localStorage.setItem('messages', JSON.stringify(messages));
+            displayMessages();
+        }
+
+        // Fungsi untuk menandai semua pesan sebagai dibaca
+        function markAllMessagesAsRead() {
+            messages = messages.map(message => ({ ...message, read: true }));
+            localStorage.setItem('messages', JSON.stringify(messages));
+            displayMessages();
+            alert("Semua pesan telah ditandai sebagai dibaca!");
+        }
+
+        // Fungsi untuk toggle baca selengkapnya
+        function toggleReadMore(id) {
+            let message = messages.find(m => m.id === id);
+            if (!message.read) {
+                message.read = true;
+                localStorage.setItem('messages', JSON.stringify(messages));
+            }
+            displayMessages();
+        }
+
+        // Fungsi untuk menghapus pesan yang sudah dibaca
+        function deleteReadMessages() {
+            if (!confirm("Yakin ingin menghapus semua pesan yang sudah dibaca?")) return;
+            messages = messages.filter(message => !message.read);
+            localStorage.setItem('messages', JSON.stringify(messages));
+            displayMessages();
+            alert("Pesan yang sudah dibaca berhasil dihapus!");
+        }
+    </script>
+</body>
+</html>
