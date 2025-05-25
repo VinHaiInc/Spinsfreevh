@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gacha Game - VinHai</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        .gacha-card {
+            width: 150px;
+            height: 200px;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2rem;
+            margin: 10px;
+            transform-style: preserve-3d;
+            transition: transform 0.5s;
+        }
+        .btn-gacha {
+            transition: transform 0.2s ease-in-out;
+        }
+        .btn-gacha:hover {
+            transform: scale(1.05);
+        }
+        #captcha-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+        #captcha-modal.show {
+            display: flex;
+        }
+        .contact-icons img {
+            width: 24px;
+            height: 24px;
+            transition: transform 0.2s ease-in-out;
+        }
+        .contact-icons img:hover {
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-100 to-gray-200 min-h-screen flex flex-col font-sans">
+    <div id="captcha-modal">
+        <div class="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full">
+            <h3 class="text-lg font-semibold mb-4">Verifikasi Bukan Robot</h3>
+            <p id="captcha-question" class="mb-4"></p>
+            <input type="number" id="captcha-answer" class="w-full p-2 border rounded-lg mb-4" placeholder="Jawaban">
+            <button onclick="verifyCaptcha()" class="bg-blue-600 text-white w-full p-2 rounded-lg hover:bg-blue-700">Verifikasi</button>
+            <p id="captcha-error" class="text-red-600 mt-2 hidden">Jawaban salah! Sisa percobaan: <span id="captcha-attempts"></span></p>
+        </div>
+    </div>
+    <div id="banned-message" class="hidden container mx-auto max-w-3xl p-8 bg-red-100 rounded-2xl shadow-xl mt-8 text-center">
+        <h2 class="text-2xl font-bold text-red-800 mb-4">Akun Anda Diblokir</h2>
+        <p id="banned-info" class="text-lg text-red-600"></p>
+    </div>
+    <div id="main-content" class="container mx-auto max-w-3xl p-8 bg-white rounded-2xl shadow-xl flex-1 mt-8 hidden">
+        <h1 class="text-4xl font-bold text-center text-gray-800 mb-6">VinHai Gacha Game</h1>
+        <div class="flex justify-between items-center mb-6">
+            <p class="text-lg text-gray-600">Koin Anda:</p>
+            <div id="coin-info" class="text-lg font-semibold text-blue-600"></div>
+        </div>
+
+        <!-- Daftar Hadiah -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-semibold text-gray-800 text-center mb-4">Daftar Hadiah (Urut dari Paling Berharga)</h2>
+            <ul id="prize-list" class="list-decimal list-inside text-gray-600 text-center mx-auto max-w-md"></ul>
+        </div>
+
+        <div class="flex justify-center gap-6 mb-8">
+            <button onclick="startGacha(1)" class="btn-gacha bg-blue-600 text-white px-8 py-4 rounded-xl shadow-lg hover:bg-blue-700 flex items-center gap-2">
+                <i class="fas fa-dice"></i> Gacha 1x (100 Koin)
+            </button>
+            <button onclick="startGacha(3)" class="btn-gacha bg-blue-600 text-white px-8 py-4 rounded-xl shadow-lg hover:bg-blue-700 flex items-center gap-2">
+                <i class="fas fa-dice"></i> Gacha 3x (500 Koin)
+            </button>
+        </div>
+        <div id="gacha-result" class="flex justify-center flex-wrap gap-4 mb-8"></div>
+        
+        <h2 class="text-2xl font-semibold text-gray-800 mb-4">Riwayat Gacha</h2>
+        <ul id="history" class="list-disc list-inside text-gray-600 mb-8 max-h-60 overflow-y-auto"></ul>
+        
+        <div class="flex justify-center gap-6 flex-wrap">
+            <a href="topup.html"><button class="bg-green-600 text-white px-8 py-4 rounded-xl shadow-lg hover:bg-green-700 flex items-center gap-2 transition-transform hover:scale-105">
+                <i class="fas fa-coins"></i> Top-Up Koin
+            </button></a>
+            <a href="event.html"><button class="bg-yellow-600 text-white px-8 py-4 rounded-xl shadow-lg hover:bg-yellow-700 flex items-center gap-2 transition-transform hover:scale-105">
+                <i class="fas fa-star"></i> Event
+            </button></a>
+            <a href="messages.html"><button class="bg-teal-600 text-white px-8 py-4 rounded-xl shadow-lg hover:bg-teal-700 flex items-center gap-2 transition-transform hover:scale-105">
+                <i class="fas fa-envelope"></i> Pesan
+            </button></a>
+            <a href="redeem.html"><button class="bg-orange-600 text-white px-8 py-4 rounded-xl shadow-lg hover:bg-orange-700 flex items-center gap-2 transition-transform hover:scale-105">
+                <i class="fas fa-gift"></i> Redeem Kode
+            </button></a>
+            <a href="admin.html"><button class="bg-purple-600 text-white px-8 py-4 rounded-xl shadow-lg hover:bg-purple-700 flex items-center gap-2 transition-transform hover:scale-105">
+                <i class="fas fa-user-shield"></i> Panel Admin
+            </button></a>
+        </div>
+
+        <!-- Tombol Kontak -->
+        <div class="flex justify-center gap-4 mt-6 contact-icons">
+            <a href="mailto:vinhaidigital@gmail.com" target="_blank">
+                <img src="https://cdn-icons-png.flaticon.com/512/732/732200.png" alt="Email Icon" title="Email Kami">
+            </a>
+            <a href="https://wa.me/62882007802573" target="_blank">
+                <img src="https://cdn-icons-png.flaticon.com/512/733/733585.png" alt="WhatsApp Icon" title="Chat via WhatsApp">
+            </a>
+        </div>
+    </div>
+    <footer class="text-center text-sm py-6 bg-gray-800 text-white">© 2025 VinHai Inc. All Rights Reserved. Version 1.0 Beta</footer>
+
+    <script>
+        let prizes = JSON.parse(localStorage.getItem('prizes')) || [
+            { name: "Saldo DANA 2K", probability: 1 },
+            { name: "100 Koin", probability: 2 },
+            { name: "Zonk", probability: 97 }
+        ];
+        // Inisialisasi koin untuk user baru
+        let coins = parseInt(localStorage.getItem('coins'));
+        if (coins === null || isNaN(coins)) {
+            coins = 100; // Default koin untuk user baru
+            localStorage.setItem('coins', coins);
+        }
+        let gachaHistory = JSON.parse(localStorage.getItem('gachaHistory')) || [];
+        let captchaAttempts = parseInt(localStorage.getItem('captchaAttempts')) || 3;
+        let bannedUntil = parseInt(localStorage.getItem('bannedUntil')) || 0;
+        let captchaCallback = null;
+        let gachaCount = parseInt(localStorage.getItem('gachaCount')) || 0;
+
+        // Inisialisasi halaman
+        checkBanStatus();
+        if (!isBanned()) {
+            showCaptcha(() => {
+                document.getElementById('main-content').classList.remove('hidden');
+                updateCoinDisplay();
+                updatePrizeList();
+                updateHistory();
+            });
+        }
+
+        // Fungsi untuk memperbarui tampilan koin
+        function updateCoinDisplay() {
+            document.getElementById('coin-info').innerHTML = `<i class="fas fa-coins mr-2 text-yellow-500"></i> ${coins}`;
+            localStorage.setItem('coins', coins);
+        }
+
+        // Fungsi untuk memperbarui daftar hadiah
+        function updatePrizeList() {
+            let prizeList = document.getElementById('prize-list');
+            prizeList.innerHTML = '';
+            // Urutkan hadiah berdasarkan nilai (besar ke kecil)
+            let rankedPrizes = [...prizes].sort((a, b) => {
+                const valueOrder = {
+                    "Saldo DANA 2K": 3,
+                    "100 Koin": 2,
+                    "Zonk": 1
+                };
+                return (valueOrder[b.name] || 0) - (valueOrder[a.name] || 0);
+            });
+
+            if (rankedPrizes.length === 0) {
+                let li = document.createElement('li');
+                li.textContent = 'Belum ada hadiah.';
+                prizeList.appendChild(li);
+            } else {
+                rankedPrizes.forEach(prize => {
+                    let li = document.createElement('li');
+                    li.textContent = prize.name;
+                    prizeList.appendChild(li);
+                });
+            }
+        }
+
+        // Fungsi untuk memeriksa status banned
+        function checkBanStatus() {
+            if (isBanned()) {
+                document.getElementById('banned-message').classList.remove('hidden');
+                let bannedTime = new Date(bannedUntil);
+                document.getElementById('banned-info').textContent = `Anda diblokir hingga ${bannedTime.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}`;
+            } else {
+                document.getElementById('main-content').classList.remove('hidden');
+            }
+        }
+
+        // Fungsi untuk memeriksa apakah pengguna diblokir
+        function isBanned() {
+            return bannedUntil > Date.now();
+        }
+
+        // Fungsi untuk menampilkan CAPTCHA
+        function showCaptcha(callback) {
+            if (isBanned()) return;
+            captchaCallback = callback;
+            let a = Math.floor(Math.random() * 10) + 1;
+            let b = Math.floor(Math.random() * 10) + 1;
+            document.getElementById('captcha-question').textContent = `${a} + ${b} = ?`;
+            document.getElementById('captcha-modal').classList.add('show');
+            document.getElementById('captcha-answer').value = '';
+            document.getElementById('captcha-error').classList.add('hidden');
+            document.getElementById('captcha-attempts').textContent = captchaAttempts;
+        }
+
+        // Fungsi untuk memverifikasi CAPTCHA
+        function verifyCaptcha() {
+            let answer = parseInt(document.getElementById('captcha-answer').value);
+            let question = document.getElementById('captcha-question').textContent;
+            let correctAnswer = eval(question.split(' =')[0]);
+            if (answer === correctAnswer) {
+                captchaAttempts = 3;
+                localStorage.setItem('captchaAttempts', captchaAttempts);
+                document.getElementById('captcha-modal').classList.remove('show');
+                if (captchaCallback) captchaCallback();
+            } else {
+                captchaAttempts--;
+                localStorage.setItem('captchaAttempts', captchaAttempts);
+                if (captchaAttempts <= 0) {
+                    bannedUntil = Date.now() + 24 * 60 * 60 * 1000; // 1 hari
+                    localStorage.setItem('bannedUntil', bannedUntil);
+                    localStorage.setItem('captchaAttempts', 3);
+                    checkBanStatus();
+                    document.getElementById('captcha-modal').classList.remove('show');
+                } else {
+                    document.getElementById('captcha-error').classList.remove('hidden');
+                    document.getElementById('captcha-attempts').textContent = captchaAttempts;
+                }
+            }
+        }
+
+        // Fungsi untuk memulai gacha dengan verifikasi
+        function startGacha(times) {
+            if (isBanned()) {
+                checkBanStatus();
+                return;
+            }
+            showCaptcha(() => gacha(times));
+        }
+
+        // Fungsi untuk melakukan gacha
+        function gacha(times) {
+            let cost = times === 1 ? 100 : 500;
+            if (coins < cost) {
+                showResult([{ prize: "Koin tidak cukup!" }]);
+                return;
+            }
+
+            coins -= cost;
+            gachaCount += times;
+            localStorage.setItem('coins', coins);
+            localStorage.setItem('gachaCount', gachaCount);
+            updateCoinDisplay();
+
+            let results = [];
+            for (let i = 0; i < times; i++) {
+                let result = getGachaResult();
+                results.push({ prize: result });
+                gachaHistory.push({ date: new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }), prize: result });
+            }
+
+            localStorage.setItem('gachaHistory', JSON.stringify(gachaHistory));
+            showResult(results);
+            updateHistory();
+        }
+
+        // Fungsi untuk menampilkan hasil gacha dengan animasi GSAP
+        function showResult(results) {
+            let resultDiv = document.getElementById('gacha-result');
+            resultDiv.innerHTML = '';
+            results.forEach((result, index) => {
+                let card = document.createElement('div');
+                card.className = 'gacha-card';
+                card.textContent = result.prize;
+                resultDiv.appendChild(card);
+
+                gsap.fromTo(card, 
+                    { rotationY: 0, opacity: 0, y: 50 },
+                    { rotationY: 360, opacity: 1, y: 0, duration: 1, delay: index * 0.3, ease: "power2.out" }
+                );
+                gsap.to(card, { 
+                    x: 10, 
+                    repeat: 3, 
+                    yoyo: true, 
+                    duration: 0.1, 
+                    delay: index * 0.3 + 0.8, 
+                    ease: "power1.inOut" 
+                });
+            });
+        }
+
+        // Fungsi untuk menentukan hasil gacha
+        function getGachaResult() {
+            let total = prizes.reduce((sum, prize) => sum + prize.probability, 0);
+            if (total !== 100) {
+                alert("Total probabilitas harus 100%! Silakan perbaiki di panel admin.");
+                return "Error";
+            }
+
+            let rand = Math.random() * 100;
+            let cumulative = 0;
+            for (let prize of prizes) {
+                cumulative += prize.probability;
+                if (rand <= cumulative) {
+                    if (prize.name.includes("Koin")) {
+                        let coinAmount = parseInt(prize.name.match(/\d+/)[0]);
+                        coins += coinAmount;
+                        localStorage.setItem('coins', coins);
+                        updateCoinDisplay();
+                    }
+                    return prize.name;
+                }
+            }
+            return "Zonk";
+        }
+
+        // Fungsi untuk memperbarui riwayat gacha
+        function updateHistory() {
+            let historyList = document.getElementById('history');
+            historyList.innerHTML = '';
+            gachaHistory.forEach(item => {
+                let li = document.createElement('li');
+                li.textContent = `${item.date}: ${item.prize}`;
+                historyList.appendChild(li);
+            });
+        }
+    </script>
+</body>
+</html>
