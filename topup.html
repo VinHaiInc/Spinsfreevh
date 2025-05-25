@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Top-Up Koin - VinHai</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        .result {
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+        }
+        .result.show {
+            opacity: 1;
+        }
+        .btn-topup {
+            transition: transform 0.2s ease-in-out;
+        }
+        .btn-topup:hover {
+            transform: scale(1.05);
+        }
+        #captcha-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+        #captcha-modal.show {
+            display: flex;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-100 to-gray-200 min-h-screen flex flex-col font-sans">
+    <div id="captcha-modal">
+        <div class="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full">
+            <h3 class="text-lg font-semibold mb-4">Verifikasi Bukan Robot</h3>
+            <p id="captcha-question" class="mb-4"></p>
+            <input type="number" id="captcha-answer" class="w-full p-2 border rounded-lg mb-4" placeholder="Jawaban">
+            <button onclick="verifyCaptcha()" class="bg-blue-600 text-white w-full p-2 rounded-lg hover:bg-blue-700">Verifikasi</button>
+            <p id="captcha-error" class="text-red-600 mt-2 hidden">Jawaban salah! Sisa percobaan: <span id="captcha-attempts"></span></p>
+        </div>
+    </div>
+    <div id="banned-message" class="hidden container mx-auto max-w-md p-8 bg-red-100 rounded-2xl shadow-xl mt-8 text-center">
+        <h2 class="text-2xl font-bold text-red-800 mb-4">Akun Anda Diblokir</h2>
+        <p id="banned-info" class="text-lg text-red-600"></p>
+    </div>
+    <div id="main-content" class="container mx-auto max-w-md p-8 bg-white rounded-2xl shadow-xl flex-1 mt-8 hidden">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-800">Top-Up Koin</h1>
+            <div id="coin-info" class="text-lg font-semibold text-gray-700"></div>
+        </div>
+        <div class="mb-6">
+            <label for="topup-code" class="block text-gray-600 mb-2 font-medium"><i class="fas fa-key mr-2"></i> Masukkan Kode Top-Up</label>
+            <input type="text" id="topup-code" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Kode Top-Up">
+        </div>
+        <div class="mb-6">
+            <label for="topup-amount" class="block text-gray-600 mb-2 font-medium"><i class="fas fa-coins mr-2"></i> Pilih Jumlah Koin</label>
+            <select id="topup-amount" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+        </div>
+        <button onclick="startTopUp()" class="btn-topup bg-green-600 text-white w-full p-3 rounded-lg shadow-lg hover:bg-green-700 flex items-center justify-center gap-2">
+            <i class="fas fa-wallet"></i> Top-Up Sekarang
+        </button>
+        <div class="result text-center text-lg font-semibold text-gray-800 mt-4" id="result"></div>
+        <div class="mt-6">
+            <a href="index.html"><button class="bg-blue-600 text-white w-full p-3 rounded-lg shadow-lg hover:bg-blue-700 flex items-center justify-center gap-2 transition-transform hover:scale-105">
+                <i class="fas fa-arrow-left"></i> Kembali ke Gacha
+            </button></a>
+        </div>
+    </div>
+
+    <footer class="text-center text-sm py-6 bg-gray-800 text-white">© 2025 VinHai Inc. All Rights Reserved. Version 1.0 Beta</footer>
+
+    <script>
+        let topupCodes = JSON.parse(localStorage.getItem('topupCodes')) || [
+            { amount: 100, code: "CODE100", used: false },
+            { amount: 300, code: "CODE300", used: false },
+            { amount: 500, code: "CODE500", used: false },
+            { amount: 1000, code: "CODE1000", used: false }
+        ];
+        let coins = parseInt(localStorage.getItem('coins')) || 1000;
+        let captchaAttempts = parseInt(localStorage.getItem('captchaAttempts')) || 3;
+        let bannedUntil = parseInt(localStorage.getItem('bannedUntil')) || 0;
+        let captchaCallback = null;
+
+        // Inisialisasi halaman
+        checkBanStatus();
+        if (!isBanned()) {
+            showCaptcha(() => {
+                document.getElementById('main-content').classList.remove('hidden');
+                updateCoinDisplay();
+                updateTopupOptions();
+            });
+        }
+
+        // Fungsi untuk memperbarui tampilan koin
+        function updateCoinDisplay() {
+            document.getElementById('coin-info').innerHTML = `<i class="fas fa-coins mr-2 text-yellow-500"></i> Koin: ${coins}`;
+        }
+
+        // Fungsi untuk memeriksa status banned
+        function checkBanStatus() {
+            if (isBanned()) {
+                document.getElementById('banned-message').classList.remove('hidden');
+                let bannedTime = new Date(bannedUntil);
+                document.getElementById('banned-info').textContent = `Anda diblokir hingga ${bannedTime.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}`;
+            } else {
+                document.getElementById('main-content').classList.remove('hidden');
+            }
+        }
+
+        // Fungsi untuk memeriksa apakah pengguna diblokir
+        function isBanned() {
+            return bannedUntil > Date.now();
+        }
+
+        // Fungsi untuk menampilkan CAPTCHA
+        function showCaptcha(callback) {
+            if (isBanned()) return;
+            captchaCallback = callback;
+            let a = Math.floor(Math.random() * 10) + 1;
+            let b = Math.floor(Math.random() * 10) + 1;
+            document.getElementById('captcha-question').textContent = `${a} + ${b} = ?`;
+            document.getElementById('captcha-modal').classList.add('show');
+            document.getElementById('captcha-answer').value = '';
+            document.getElementById('captcha-error').classList.add('hidden');
+            document.getElementById('captcha-attempts').textContent = captchaAttempts;
+        }
+
+        // Fungsi untuk memverifikasi CAPTCHA
+        function verifyCaptcha() {
+            let answer = parseInt(document.getElementById('captcha-answer').value);
+            let question = document.getElementById('captcha-question').textContent;
+            let correctAnswer = eval(question.split(' =')[0]);
+            if (answer === correctAnswer) {
+                captchaAttempts = 3;
+                localStorage.setItem('captchaAttempts', captchaAttempts);
+                document.getElementById('captcha-modal').classList.remove('show');
+                if (captchaCallback) captchaCallback();
+            } else {
+                captchaAttempts--;
+                localStorage.setItem('captchaAttempts', captchaAttempts);
+                if (captchaAttempts <= 0) {
+                    bannedUntil = Date.now() + 24 * 60 * 60 * 1000; // 1 hari
+                    localStorage.setItem('bannedUntil', bannedUntil);
+                    localStorage.setItem('captchaAttempts', 3);
+                    checkBanStatus();
+                    document.getElementById('captcha-modal').classList.remove('show');
+                } else {
+                    document.getElementById('captcha-error').classList.remove('hidden');
+                    document.getElementById('captcha-attempts').textContent = captchaAttempts;
+                }
+            }
+        }
+
+        // Fungsi untuk memulai top-up dengan verifikasi
+        function startTopUp() {
+            if (isBanned()) {
+                checkBanStatus();
+                return;
+            }
+            showCaptcha(() => topUp());
+        }
+
+        // Fungsi untuk top-up
+        function topUp() {
+            let code = document.getElementById('topup-code').value.trim();
+            let amount = parseInt(document.getElementById('topup-amount').value);
+            if (!code || isNaN(amount)) {
+                showResult("Kode top-up dan jumlah koin harus valid!");
+                return;
+            }
+
+            let topupIndex = topupCodes.findIndex(t => t.code === code && t.amount === amount && !t.used);
+            if (topupIndex === -1) {
+                showResult("Kode top-up salah atau sudah digunakan!");
+                return;
+            }
+
+            coins += amount;
+            topupCodes[topupIndex].used = true;
+            localStorage.setItem('coins', coins);
+            localStorage.setItem('topupCodes', JSON.stringify(topupCodes));
+            showResult(`Top-up berhasil! Ditambahkan ${amount} koin.`);
+            document.getElementById('topup-code').value = '';
+            updateCoinDisplay();
+            updateTopupOptions();
+        }
+
+        // Fungsi untuk menampilkan hasil top-up dengan animasi
+        function showResult(message) {
+            let resultDiv = document.getElementById('result');
+            resultDiv.textContent = message;
+            resultDiv.classList.remove('show');
+            gsap.fromTo(resultDiv, 
+                { opacity: 0, y: 20 }, 
+                { opacity: 1, y: 0, duration: 0.8, ease: "power2.out", onStart: () => resultDiv.classList.add('show') }
+            );
+            setTimeout(() => {
+                gsap.to(resultDiv, { opacity: 0, y: -20, duration: 0.8, onComplete: () => resultDiv.classList.remove('show') });
+            }, 3000);
+        }
+
+        // Fungsi untuk memperbarui opsi top-up
+        function updateTopupOptions() {
+            let select = document.getElementById('topup-amount');
+            select.innerHTML = '';
+            let availableAmounts = topupCodes.filter(code => !code.used).map(code => code.amount);
+            let uniqueAmounts = [...new Set(availableAmounts)]; // Hilangkan duplikat
+            if (uniqueAmounts.length === 0) {
+                let option = document.createElement('option');
+                option.value = '';
+                option.textContent = 'Tidak ada opsi top-up tersedia';
+                option.disabled = true;
+                select.appendChild(option);
+            } else {
+                uniqueAmounts.forEach(amount => {
+                    let option = document.createElement('option');
+                    option.value = amount;
+                    option.textContent = `${amount} Koin`;
+                    select.appendChild(option);
+                });
+            }
+        }
+    </script>
+</body>
+</html>
