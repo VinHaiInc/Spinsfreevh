@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event - VinHai</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        #captcha-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+        #captcha-modal.show {
+            display: flex;
+        }
+        .btn-claim {
+            transition: transform 0.2s ease-in-out;
+        }
+        .btn-claim:hover {
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-100 to-gray-200 min-h-screen flex flex-col font-sans">
+    <div id="captcha-modal">
+        <div class="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full">
+            <h3 class="text-lg font-semibold mb-4">Verifikasi Bukan Robot</h3>
+            <p id="captcha-question" class="mb-4"></p>
+            <input type="number" id="captcha-answer" class="w-full p-2 border rounded-lg mb-4" placeholder="Jawaban">
+            <button onclick="verifyCaptcha()" class="bg-blue-600 text-white w-full p-2 rounded-lg hover:bg-blue-700">Verifikasi</button>
+            <p id="captcha-error" class="text-red-600 mt-2 hidden">Jawaban salah! Sisa percobaan: <span id="captcha-attempts"></span></p>
+        </div>
+    </div>
+    <div id="banned-message" class="hidden container mx-auto max-w-3xl p-8 bg-red-100 rounded-2xl shadow-xl mt-8 text-center">
+        <h2 class="text-2xl font-bold text-red-800 mb-4">Akun Anda Diblokir</h2>
+        <p id="banned-info" class="text-lg text-red-600"></p>
+    </div>
+    <div id="main-content" class="container mx-auto max-w-3xl p-8 bg-white rounded-2xl shadow-xl flex-1 mt-8 hidden">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-800">Event</h1>
+            <div id="coin-info" class="text-lg font-semibold text-gray-700"></div>
+        </div>
+        <div id="event-list" class="space-y-6"></div>
+        <div class="mt-8">
+            <a href="index.html"><button class="bg-blue-600 text-white w-full p-3 rounded-lg shadow-lg hover:bg-blue-700 flex items-center justify-center gap-2 transition-transform hover:scale-105">
+                <i class="fas fa-arrow-left"></i> Kembali ke Gacha
+            </button></a>
+        </div>
+    </div>
+
+    <footer class="text-center text-sm py-6 bg-gray-800 text-white">© 2025 VinHai Inc. All Rights Reserved. Version 1.0 Beta</footer>
+
+    <script>
+        let events = JSON.parse(localStorage.getItem('events')) || [
+            { id: 1, name: "Event Mingguan", description: "Main gacha sebanyak 5 kali untuk mendapatkan hadiah!", prize: "100 Koin", task: "Main gacha 5 kali", target: 5 }
+        ];
+        let eventProgress = JSON.parse(localStorage.getItem('eventProgress')) || {};
+        let coins = parseInt(localStorage.getItem('coins')) || 1000;
+        let gachaCount = parseInt(localStorage.getItem('gachaCount')) || 0;
+        let captchaAttempts = parseInt(localStorage.getItem('captchaAttempts')) || 3;
+        let bannedUntil = parseInt(localStorage.getItem('bannedUntil')) || 0;
+        let captchaCallback = null;
+
+        // Inisialisasi halaman
+        checkBanStatus();
+        if (!isBanned()) {
+            showCaptcha(() => {
+                document.getElementById('main-content').classList.remove('hidden');
+                updateCoinDisplay();
+                updateEventList();
+            });
+        }
+
+        // Fungsi untuk memperbarui tampilan koin
+        function updateCoinDisplay() {
+            document.getElementById('coin-info').innerHTML = `<i class="fas fa-coins mr-2 text-yellow-500"></i> Koin: ${coins}`;
+        }
+
+        // Fungsi untuk memeriksa status banned
+        function checkBanStatus() {
+            if (isBanned()) {
+                document.getElementById('banned-message').classList.remove('hidden');
+                let bannedTime = new Date(bannedUntil);
+                document.getElementById('banned-info').textContent = `Anda diblokir hingga ${bannedTime.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}`;
+            } else {
+                document.getElementById('main-content').classList.remove('hidden');
+            }
+        }
+
+        // Fungsi untuk memeriksa apakah pengguna diblokir
+        function isBanned() {
+            return bannedUntil > Date.now();
+        }
+
+        // Fungsi untuk menampilkan CAPTCHA
+        function showCaptcha(callback) {
+            if (isBanned()) return;
+            captchaCallback = callback;
+            let a = Math.floor(Math.random() * 10) + 1;
+            let b = Math.floor(Math.random() * 10) + 1;
+            document.getElementById('captcha-question').textContent = `${a} + ${b} = ?`;
+            document.getElementById('captcha-modal').classList.add('show');
+            document.getElementById('captcha-answer').value = '';
+            document.getElementById('captcha-error').classList.add('hidden');
+            document.getElementById('captcha-attempts').textContent = captchaAttempts;
+        }
+
+        // Fungsi untuk memverifikasi CAPTCHA
+        function verifyCaptcha() {
+            let answer = parseInt(document.getElementById('captcha-answer').value);
+            let question = document.getElementById('captcha-question').textContent;
+            let correctAnswer = eval(question.split(' =')[0]);
+            if (answer === correctAnswer) {
+                captchaAttempts = 3;
+                localStorage.setItem('captchaAttempts', captchaAttempts);
+                document.getElementById('captcha-modal').classList.remove('show');
+                if (captchaCallback) captchaCallback();
+            } else {
+                captchaAttempts--;
+                localStorage.setItem('captchaAttempts', captchaAttempts);
+                if (captchaAttempts <= 0) {
+                    bannedUntil = Date.now() + 24 * 60 * 60 * 1000; // 1 hari
+                    localStorage.setItem('bannedUntil', bannedUntil);
+                    localStorage.setItem('captchaAttempts', 3);
+                    checkBanStatus();
+                    document.getElementById('captcha-modal').classList.remove('show');
+                } else {
+                    document.getElementById('captcha-error').classList.remove('hidden');
+                    document.getElementById('captcha-attempts').textContent = captchaAttempts;
+                }
+            }
+        }
+
+        // Fungsi untuk mengklaim hadiah event
+        function claimEvent(eventId) {
+            if (isBanned()) {
+                checkBanStatus();
+                return;
+            }
+            showCaptcha(() => {
+                let event = events.find(e => e.id === eventId);
+                if (!event) {
+                    alert("Event tidak ditemukan!");
+                    return;
+                }
+                let progress = eventProgress[eventId] || { completed: false, count: 0 };
+                if (progress.completed) {
+                    alert("Hadiah sudah diklaim!");
+                    return;
+                }
+                if (progress.count >= event.target) {
+                    let prizeAmount = parseInt(event.prize.match(/\d+/)) || 0;
+                    if (prizeAmount > 0 && event.prize.includes("Koin")) {
+                        coins += prizeAmount;
+                        localStorage.setItem('coins', coins);
+                        updateCoinDisplay();
+                    }
+                    progress.completed = true;
+                    eventProgress[eventId] = progress;
+                    localStorage.setItem('eventProgress', JSON.stringify(eventProgress));
+                    alert(`Hadiah ${event.prize} berhasil diklaim!`);
+                    updateEventList();
+                } else {
+                    alert(`Tugas belum selesai! Progres: ${progress.count}/${event.target}`);
+                }
+            });
+        }
+
+        // Fungsi untuk memperbarui daftar event
+        function updateEventList() {
+            let eventList = document.getElementById('event-list');
+            eventList.innerHTML = '';
+            if (events.length === 0) {
+                let div = document.createElement('div');
+                div.className = 'text-center text-gray-600';
+                div.textContent = 'Belum ada event.';
+                eventList.appendChild(div);
+                return;
+            }
+            events.forEach(event => {
+                let progress = eventProgress[event.id] || { completed: false, count: 0 };
+                // Sinkronkan progres dengan gachaCount
+                progress.count = Math.min(gachaCount, event.target);
+                eventProgress[event.id] = progress;
+                let canClaim = !progress.completed && progress.count >= event.target;
+                let div = document.createElement('div');
+                div.className = 'p-4 bg-gray-50 rounded-lg shadow';
+                div.innerHTML = `
+                    <h3 class="text-xl font-semibold text-gray-800">${event.name}</h3>
+                    <p class="text-gray-600 mt-2">${event.description}</p>
+                    <p class="text-gray-600 mt-2"><strong>Hadiah:</strong> ${event.prize}</p>
+                    <p class="text-gray-600 mt-2"><strong>Tugas:</strong> ${event.task}</p>
+                    <p class="text-gray-600 mt-2"><strong>Progres:</strong> ${progress.count}/${event.target} kali</p>
+                    <button onclick="claimEvent(${event.id})" class="btn-claim mt-4 bg-green-600 text-white px-4 py-2 rounded-lg ${canClaim ? 'hover:bg-green-700' : 'opacity-50 cursor-not-allowed'}" ${canClaim ? '' : 'disabled'}>
+                        <i class="fas fa-gift mr-2"></i> ${progress.completed ? 'Sudah Diklaim' : 'Klaim Hadiah'}
+                    </button>
+                `;
+                eventList.appendChild(div);
+            });
+            localStorage.setItem('eventProgress', JSON.stringify(eventProgress));
+        }
+    </script>
+</body>
+</html>
