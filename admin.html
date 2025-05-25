@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Admin - VinHai</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        .btn-admin {
+            transition: transform 0.2s ease-in-out;
+        }
+        .btn-admin:hover {
+            transform: scale(1.05);
+        }
+        #captcha-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+        #captcha-modal.show {
+            display: flex;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-100 to-gray-200 min-h-screen flex flex-col font-sans">
+    <div id="captcha-modal">
+        <div class="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full">
+            <h3 class="text-lg font-semibold mb-4">Verifikasi Bukan Robot</h3>
+            <p id="captcha-question" class="mb-4"></p>
+            <input type="number" id="captcha-answer" class="w-full p-2 border rounded-lg mb-4" placeholder="Jawaban">
+            <button onclick="verifyCaptcha()" class="bg-blue-600 text-white w-full p-2 rounded-lg hover:bg-blue-700">Verifikasi</button>
+            <p id="captcha-error" class="text-red-600 mt-2 hidden">Jawaban salah! Sisa percobaan: <span id="captcha-attempts"></span></p>
+        </div>
+    </div>
+    <div id="banned-message" class="hidden container mx-auto max-w-3xl p-8 bg-red-100 rounded-2xl shadow-xl mt-8 text-center">
+        <h2 class="text-2xl font-bold text-red-800 mb-4">Akun Anda Diblokir</h2>
+        <p id="banned-info" class="text-lg text-red-600"></p>
+    </div>
+    <div id="main-content" class="container mx-auto max-w-3xl p-8 bg-white rounded-2xl shadow-xl flex-1 mt-8 hidden">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Panel Admin</h1>
+        <div id="login-section" class="mb-8">
+            <label for="admin-password" class="block text-gray-600 mb-2 font-medium"><i class="fas fa-lock mr-2"></i> Masukkan Kata Sandi Admin</label>
+            <input type="password" id="admin-password" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Kata Sandi">
+            <button onclick="startLogin()" class="btn-admin bg-blue-600 text-white w-full p-3 mt-4 rounded-lg shadow-lg hover:bg-blue-700 flex items-center justify-center gap-2">
+                <i class="fas fa-sign-in-alt"></i> Masuk
+            </button>
+        </div>
+        
+        <div class="hidden" id="admin-panel">
+            <!-- Kelola Hadiah -->
+            <h3 class="text-2xl font-semibold text-gray-800 mb-4">Kelola Hadiah</h3>
+            <h4 class="text-lg font-medium text-gray-700 mb-2">Persentase Hadiah Saat Ini</h4>
+            <ul id="prize-list" class="list-disc list-inside text-gray-600 mb-6"></ul>
+            <h4 class="text-lg font-medium text-gray-700 mb-2">Tambah Hadiah Baru</h4>
+            <input type="text" id="new-prize-name" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nama Hadiah (contoh: Saldo DANA 5K)">
+            <input type="number" id="new-prize-prob" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Persentase (0-100)" min="0" max="100">
+            <button onclick="addPrize()" class="btn-admin bg-blue-600 text-white w-full p-3 rounded-lg shadow-lg hover:bg-blue-700 flex items-center justify-center gap-2">
+                <i class="fas fa-plus"></i> Tambah Hadiah
+            </button>
+            <h4 class="text-lg font-medium text-gray-700 mt-6 mb-2">Edit Persentase Hadiah</h4>
+            <select id="edit-prize-select" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+            <input type="number" id="edit-prize-prob" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Persentase Baru" min="0" max="100">
+            <button onclick="updatePrize()" class="btn-admin bg-blue-600 text-white w-full p-3 rounded-lg shadow-lg hover:bg-blue-700 flex items-center justify-center gap-2">
+                <i class="fas fa-edit"></i> Perbarui Persentase
+            </button>
+            <h4 class="text-lg font-medium text-gray-700 mt-6 mb-2">Hapus Hadiah</h4>
+            <select id="delete-prize-select" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+            <button onclick="deletePrize()" class="btn-admin bg-red-600 text-white w-full p-3 rounded-lg shadow-lg hover:bg-red-700 flex items-center justify-center gap-2">
+                <i class="fas fa-trash"></i> Hapus Hadiah
+            </button>
+
+            <!-- Kelola Top-Up -->
+            <h3 class="text-2xl font-semibold text-gray-800 mt-8 mb-4">Kelola Top-Up</h3>
+            <h4 class="text-lg font-medium text-gray-700 mb-2">Kode Top-Up Saat Ini</h4>
+            <ul id="topup-code-list" class="list-disc list-inside text-gray-600 mb-6"></ul>
+            <h4 class="text-lg font-medium text-gray-700 mb-2">Edit Kode Top-Up</h4>
+            <select id="edit-topup-select" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+            <input type="text" id="edit-topup-code" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Kode Baru">
+            <button onclick="updateTopupCode()" class="btn-admin bg-blue-600 text-white w-full p-3 rounded-lg shadow-lg hover:bg-blue-700 flex items-center justify-center gap-2">
+                <i class="fas fa-edit"></i> Perbarui Kode
+            </button>
+            <h4 class="text-lg font-medium text-gray-700 mt-6 mb-2">Tambah Opsi Top-Up Baru</h4>
+            <input type="number" id="new-topup-amount" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Jumlah Koin" min="1">
+            <input type="text" id="new-topup-code" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Kode Top-Up">
+            <button onclick="addTopupOption()" class="btn-admin bg-blue-600 text-white w-full p-3 rounded-lg shadow-lg hover:bg-blue-700 flex items-center justify-center gap-2">
+                <i class="fas fa-plus"></i> Tambah Opsi Top-Up
+            </button>
+            <h4 class="text-lg font-medium text-gray-700 mt-6 mb-2">Hapus Kode Top-Up</h4>
+            <select id="delete-topup-select" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+            <button onclick="deleteTopupCode()" class="btn-admin bg-red-600 text-white w-full p-3 rounded-lg shadow-lg hover:bg-red-700 flex items-center justify-center gap-2">
+                <i class="fas fa-trash"></i> Hapus Kode Top-Up
+            </button>
+
+            <!-- Kelola Event -->
+            <h3 class="text-2xl font-semibold text-gray-800 mt-8 mb-4">Kelola Event</h3>
+            <h4 class="text-lg font-medium text-gray-700 mb-2">Event Saat Ini</h4>
+            <ul id="event-list" class="list-disc list-inside text-gray-600 mb-6"></ul>
+            <h4 class="text-lg font-medium text-gray-700 mb-2">Tambah Event Baru</h4>
+            <input type="text" id="new-event-name" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nama Event">
+            <textarea id="new-event-desc" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Deskripsi Event"></textarea>
+            <input type="text" id="new-event-prize" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Hadiah Event (contoh: 100 Koin)">
+            <input type="text" id="new-event-task" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Tugas Event (contoh: Main gacha 5 kali)">
+            <input type="number" id="new-event-target" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Target Tugas (contoh: 5)" min="1">
+            <button onclick="addEvent()" class="btn-admin bg-blue-600 text-white w-full p-3 rounded-lg shadow-lg hover:bg-blue-700 flex items-center justify-center gap-2">
+                <i class="fas fa-plus"></i> Tambah Event
+            </button>
+            <h4 class="text-lg font-medium text-gray-700 mt-6 mb-2">Edit Event</h4>
+            <select id="edit-event-select" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+            <input type="text" id="edit-event-name" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nama Event Baru">
+            <textarea id="edit-event-desc" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Deskripsi Event Baru"></textarea>
+            <input type="text" id="edit-event-prize" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Hadiah Event Baru">
+            <input type="text" id="edit-event-task" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Tugas Event Baru">
+            <input type="number" id="edit-event-target" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Target Tugas Baru" min="1">
+            <button onclick="updateEvent()" class="btn-admin bg-blue-600 text-white w-full p-3 rounded-lg shadow-lg hover:bg-blue-700 flex items-center justify-center gap-2">
+                <i class="fas fa-edit"></i> Perbarui Event
+            </button>
+            <h4 class="text-lg font-medium text-gray-700 mt-6 mb-2">Hapus Event</h4>
+            <select id="delete-event-select" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+            <button onclick="deleteEvent()" class="btn-admin bg-red-600 text-white w-full p-3 rounded-lg shadow-lg hover:bg-red-700 flex items-center justify-center gap-2">
+                <i class="fas fa-trash"></i> Hapus Event
+            </button>
+
+            <!-- Kelola Pesan -->
+            <h3 class="text-2xl font-semibold text-gray-800 mt-8 mb-4">Kelola Pesan</h3>
+            <h4 class="text-lg font-medium text-gray-700 mb-2">Pesan Saat Ini</h4>
+            <ul id="message-list" class="list-disc list-inside text-gray-600 mb-6"></ul>
+            <h4 class="text-lg font-medium text-gray-700 mb-2">Tambah Pesan Baru</h4>
+            <input type="text" id="new-message-title" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Judul Pesan">
+            <textarea id="new-message-content" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Isi Pesan"></textarea>
+            <button onclick="addMessage()" class="btn-admin bg-blue-600 text-white w-full p-3 rounded-lg shadow-lg hover:bg-blue-700 flex items-center justify-center gap-2">
+                <i class="fas fa-plus"></i> Tambah Pesan
+            </button>
+            <h4 class="text-lg font-medium text-gray-700 mt-6 mb-2">Edit Pesan</h4>
+            <select id="edit-message-select" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+            <input type="text" id="edit-message-title" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Judul Pesan Baru">
+            <textarea id="edit-message-content" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Isi Pesan Baru"></textarea>
+            <button onclick="updateMessage()" class="btn-admin bg-blue-600 text-white w-full p-3 rounded-lg shadow-lg hover:bg-blue-700 flex items-center justify-center gap-2">
+                <i class="fas fa-edit"></i> Perbarui Pesan
+            </button>
+            <h4 class="text-lg font-medium text-gray-700 mt-6 mb-2">Hapus Pesan</h4>
+            <select id="delete-message-select" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+            <button onclick="deleteMessage()" class="btn-admin bg-red-600 text-white w-full p-3 rounded-lg shadow-lg hover:bg-red-700 flex items-center justify-center gap-2">
+                <i class="fas fa-trash"></i> Hapus Pesan
+            </button>
+
+            <!-- Kelola Kode Redeem -->
+            <h3 class="text-2xl font-semibold text-gray-800 mt-8 mb-4">Kelola Kode Redeem</h3>
+            <h4 class="text-lg font-medium text-gray-700 mb-2">Kode Redeem Saat Ini</h4>
+            <ul id="redeem-code-list" class="list-disc list-inside text-gray-600 mb-6"></ul>
+            <h4 class="text-lg font-medium text-gray-700 mb-2">Tambah Kode Redeem Baru</h4>
+            <input type="text" id="new-redeem-code" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Kode Redeem">
+            <input type="text" id="new-redeem-prize" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Hadiah (contoh: 200 Koin)">
+            <button onclick="addRedeemCode()" class="btn-admin bg-blue-600 text-white w-full p-3 rounded-lg shadow-lg hover:bg-blue-700 flex items-center justify-center gap-2">
+                <i class="fas fa-plus"></i> Tambah Kode Redeem
+            </button>
+            <h4 class="text-lg font-medium text-gray-700 mt-6 mb-2">Edit Kode Redeem</h4>
+            <select id="edit-redeem-select" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+            <input type="text" id="edit-redeem-code" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Kode Redeem Baru">
+            <input type="text" id="edit-redeem-prize" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Hadiah Baru">
+            <button onclick="updateRedeemCode()" class="btn-admin bg-blue-600 text-white w-full p-3 rounded-lg shadow-lg hover:bg-blue-700 flex items-center justify-center gap-2">
+                <i class="fas fa-edit"></i> Perbarui Kode Redeem
+            </button>
+            <h4 class="text-lg font-medium text-gray-700 mt-6 mb-2">Hapus Kode Redeem</h4>
+            <select id="delete-redeem-select" class="w-full p-3 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+            <button onclick="deleteRedeemCode()" class="btn-admin bg-red-600 text-white w-full p-3 rounded-lg shadow-lg hover:bg-red-700 flex items-center justify-center gap-2">
+                <i class="fas fa-trash"></i> Hapus Kode Redeem
+            </button>
+            
+            <div class="mt-8">
+                <a href="index.html"><button class="btn-admin bg-purple-600 text-white w-full p-3 rounded-lg shadow-lg hover:bg-purple-700 flex items-center justify-center gap-2">
+                    <i class="fas fa-arrow-left"></i> Kembali ke Gacha
+                </button></a>
+            </div>
+        </div>
+    </div>
+
+    <footer class="text-center text-sm py-6 bg-gray-800 text-white">© 2025 VinHai Inc. All Rights Reserved. Version 1.0 Beta</footer>
+
+    <script>
+        const adminPassword = "VINHAI";
+        let prizes = JSON.parse(localStorage.getItem('prizes')) || [
+            { name: "Saldo DANA 2K", probability: 1 },
+            { name: "100 Koin", probability: 2 },
+            { name: "Zonk", probability: 97 }
+        ];
+        let topupCodes = JSON.parse(localStorage.getItem('topupCodes')) || [
+            { amount: 100, code: "CODE100", used: false },
+            { amount: 300, code: "CODE300", used: false },
+            { amount: 500, code: "CODE500", used: false },
+            { amount: 1000, code: "CODE1000", used: false }
+        ];
+        let events = JSON.parse(localStorage.getItem('events')) || [
+            { id: 1, name: "Event Mingguan", description: "Main gacha sebanyak 5 kali untuk mendapatkan hadiah!", prize: "100 Koin", task: "Main gacha 5 kali", target: 5 }
+        ];
+        let messages = JSON.parse(localStorage.getItem('messages')) || [
+            { id: 1, title: "Selamat Datang!", content: "Selamat bergabung di Gacha Game VinHai! Nikmati event mingguan kami!", timestamp: new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }), read: false }
+        ];
+        let redeemCodes = JSON.parse(localStorage.getItem('redeemCodes')) || [
+            { code: "REDEEM2025", prize: "200 Koin", used: false }
+        ];
+        let captchaAttempts = parseInt(localStorage.getItem('captchaAttempts')) || 3;
+        let bannedUntil = parseInt(localStorage.getItem('bannedUntil')) || 0;
+        let captchaCallback = null;
+
+        // Inisialisasi halaman
+        checkBanStatus();
+        if (!isBanned()) {
+            showCaptcha(() => {
+                document.getElementById('main-content').classList.remove('hidden');
+            });
+        }
+
+        // Fungsi untuk memeriksa status banned
+        function checkBanStatus() {
+            if (isBanned()) {
+                document.getElementById('banned-message').classList.remove('hidden');
+                let bannedTime = new Date(bannedUntil);
+                document.getElementById('banned-info').textContent = `Anda diblokir hingga ${bannedTime.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}`;
+            } else {
+                document.getElementById('main-content').classList.remove('hidden');
+            }
+        }
+
+        // Fungsi untuk memeriksa apakah pengguna diblokir
+        function isBanned() {
+            return bannedUntil > Date.now();
+        }
+
+        // Fungsi untuk menampilkan CAPTCHA
+        function showCaptcha(callback) {
+            if (isBanned()) return;
+            captchaCallback = callback;
+            let a = Math.floor(Math.random() * 10) + 1;
+            let b = Math.floor(Math.random() * 10) + 1;
+            document.getElementById('captcha-question').textContent = `${a} + ${b} = ?`;
+            document.getElementById('captcha-modal').classList.add('show');
+            document.getElementById('captcha-answer').value = '';
+            document.getElementById('captcha-error').classList.add('hidden');
+            document.getElementById('captcha-attempts').textContent = captchaAttempts;
+        }
+
+        // Fungsi untuk memverifikasi CAPTCHA
+        function verifyCaptcha() {
+            let answer = parseInt(document.getElementById('captcha-answer').value);
+            let question = document.getElementById('captcha-question').textContent;
+            let correctAnswer = eval(question.split(' =')[0]);
+            if (answer === correctAnswer) {
+                captchaAttempts = 3;
+                localStorage.setItem('captchaAttempts', captchaAttempts);
+                document.getElementById('captcha-modal').classList.remove('show');
+                if (captchaCallback) captchaCallback();
+            } else {
+                captchaAttempts--;
+                localStorage.setItem('captchaAttempts', captchaAttempts);
+                if (captchaAttempts <= 0) {
+                    bannedUntil = Date.now() + 24 * 60 * 60 * 1000; // 1 hari
+                    localStorage.setItem('bannedUntil', bannedUntil);
+                    localStorage.setItem('captchaAttempts', 3);
+                    checkBanStatus();
+                    document.getElementById('captcha-modal').classList.remove('show');
+                } else {
+                    document.getElementById('captcha-error').classList.remove('hidden');
+                    document.getElementById('captcha-attempts').textContent = captchaAttempts;
+                }
+            }
+        }
+
+        // Fungsi untuk memulai login dengan verifikasi
+        function startLogin() {
+            if (isBanned()) {
+                checkBanStatus();
+                return;
+            }
+            showCaptcha(() => login());
+        }
+
+        // Fungsi untuk login admin
+        function login() {
+            let password = document.getElementById('admin-password').value.trim().toUpperCase();
+            if (password === adminPassword) {
+                document.getElementById('login-section').classList.add('hidden');
+                document.getElementById('admin-panel').classList.remove('hidden');
+                updateAllLists();
+            } else {
+                alert("Kata sandi salah!");
+            }
+        }
+
+        // Fungsi untuk memperbarui semua daftar
+        function updateAllLists() {
+            updatePrizeList();
+            updatePrizeSelect();
+            updateDeletePrizeSelect();
+            updateTopupCodeList();
+            updateTopupSelect();
+            updateDeleteTopupSelect();
+            updateEventList();
+            updateEventSelect();
+            updateDeleteEventSelect();
+            updateMessageList();
+            updateMessageSelect();
+            updateDeleteMessageSelect();
+            updateRedeemCodeList();
+            updateRedeemSelect();
+            updateDeleteRedeemSelect();
+        }
+
+        // --- Fungsi untuk Hadiah ---
+
+        function updatePrizeList() {
+            let prizeList = document.getElementById('prize-list');
+            prizeList.innerHTML = '';
+            if (prizes.length === 0) {
+                let li = document.createElement('li');
+                li.textContent = 'Belum ada hadiah.';
+                prizeList.appendChild(li);
+            } else {
+                prizes.forEach(prize => {
+                    let li = document.createElement('li');
+                    li.textContent = `${prize.name}: ${prize.probability}%`;
+                    prizeList.appendChild(li);
+                });
+            }
+            let totalProb = prizes.reduce((sum, prize) => sum + prize.probability, 0);
+            if (totalProb !== 100) {
+                prizeList.innerHTML += `<li class="text-red-600">Total probabilitas: ${totalProb}% (Harus 100%)</li>`;
+            }
+        }
+
+        function updatePrizeSelect() {
+            let select = document.getElementById('edit-prize-select');
+            select.innerHTML = '';
+            prizes.forEach(prize => {
+                let option = document.createElement('option');
+                option.value = prize.name;
+                option.textContent = `${prize.name} (${prize.probability}%)`;
+                select.appendChild(option);
+            });
+        }
+
+        function updateDeletePrizeSelect() {
+            let select = document.getElementById('delete-prize-select');
+            select.innerHTML = '';
+            prizes.forEach(prize => {
+                let option = document.createElement('option');
+                option.value = prize.name;
+                option.textContent = `${prize.name} (${prize.probability}%)`;
+                select.appendChild(option);
+            });
+        }
+
+        function addPrize() {
+            let name = document.getElementById('new-prize-name').value.trim();
+            let prob = parseFloat(document.getElementById('new-prize-prob').value);
+            if (!name || isNaN(prob) || prob < 0 || prob > 100) {
+                alert("Nama hadiah dan persentase harus valid (0-100)!");
+                return;
+            }
+
+            let currentTotal = prizes.reduce((sum, prize) => sum + prize.probability, 0);
+            let newTotal = currentTotal + prob;
+            if (newTotal > 100) {
+                alert("Total probabilitas melebihi 100%! Kurangi persentase atau hapus hadiah lain.");
+                return;
+            }
+
+            prizes.push({ name, probability: prob });
+            localStorage.setItem('prizes', JSON.stringify(prizes));
+            updateAllLists();
+            document.getElementById('new-prize-name').value = '';
+            document.getElementById('new-prize-prob').value = '';
+            alert("Hadiah berhasil ditambahkan!");
+        }
+
+        function updatePrize() {
+            let name = document.getElementById('edit-prize-select').value;
+            let newProb = parseFloat(document.getElementById('edit-prize-prob').value);
+            if (isNaN(newProb) || newProb < 0 || newProb > 100) {
+                alert("Persentase harus valid (0-100)!");
+                return;
+            }
+
+            let oldProb = prizes.find(p => p.name === name).probability;
+            let totalProb = prizes.reduce((sum, prize) => sum + (prize.name === name ? 0 : prize.probability), 0) + newProb;
+            if (totalProb > 100) {
+                alert("Total probabilitas melebihi 100%! Sesuaikan persentase lain.");
+                return;
+            }
+
+            prizes = prizes.map(prize => 
+                prize.name === name ? { ...prize, probability: newProb } : prize
+            );
+            localStorage.setItem('prizes', JSON.stringify(prizes));
+            updateAllLists();
+            document.getElementById('edit-prize-prob').value = '';
+            alert("Persentase hadiah berhasil diperbarui!");
+        }
+
+        function deletePrize() {
+            let name = document.getElementById('delete-prize-select').value;
+            if (!confirm(`Yakin ingin menghapus hadiah "${name}"?`)) return;
+
+            prizes = prizes.filter(prize => prize.name !== name);
+            // Normalisasi probabilitas agar total kembali 100% jika memungkinkan
+            if (prizes.length > 0) {
+                let totalProb = prizes.reduce((sum, prize) => sum + prize.probability, 0);
+                if (totalProb < 100) {
+                    let adjustment = 100 / prizes.length;
+                    prizes = prizes.map(prize => ({ ...prize, probability: adjustment }));
+                }
+            }
+            localStorage.setItem('prizes', JSON.stringify(prizes));
+            updateAllLists();
+            alert("Hadiah berhasil dihapus!");
+        }
+
+        // --- Fungsi untuk Top-Up ---
+
+        function updateTopupCodeList() {
+            let codeList = document.getElementById('topup-code-list');
+            codeList.innerHTML = '';
+            if (topupCodes.length === 0) {
+                let li = document.createElement('li');
+                li.textContent = 'Belum ada kode top-up.';
+                codeList.appendChild(li);
+            } else {
+                topupCodes.forEach(code => {
+                    let li = document.createElement('li');
+                    li.textContent = `${code.amount} Koin: ${code.code} (${code.used ? 'Sudah Digunakan' : 'Aktif'})`;
+                    codeList.appendChild(li);
+                });
+            }
+        }
+
+        function updateTopupSelect() {
+            let select = document.getElementById('edit-topup-select');
+            select.innerHTML = '';
+            topupCodes.forEach(code => {
+                let option = document.createElement('option');
+                option.value = code.code;
+                option.textContent = `${code.amount} Koin: ${code.code}`;
+                select.appendChild(option);
+            });
+        }
+
+        function updateDeleteTopupSelect() {
+            let select = document.getElementById('delete-topup-select');
+            select.innerHTML = '';
+            topupCodes.forEach(code => {
+                let option = document.createElement('option');
+                option.value = code.code;
+                option.textContent = `${code.amount} Koin: ${code.code}`;
+                select.appendChild(option);
+            });
+        }
+
+        function updateTopupCode() {
+            let oldCode = document.getElementById('edit-topup-select').value;
+            let newCode = document.getElementById('edit-topup-code').value.trim();
+            if (!newCode) {
+                alert("Kode top-up baru harus valid!");
+                return;
+            }
+
+            if (topupCodes.some(code => code.code === newCode && code.code !== oldCode)) {
+                alert("Kode top-up sudah ada!");
+                return;
+            }
+
+            topupCodes = topupCodes.map(code => 
+                code.code === oldCode ? { ...code, code: newCode } : code
+            );
+            localStorage.setItem('topupCodes', JSON.stringify(topupCodes));
+            updateAllLists();
+            document.getElementById('edit-topup-code').value = '';
+            alert("Kode top-up berhasil diperbarui!");
+        }
+
+        function addTopupOption() {
+            let amount = parseInt(document.getElementById('new-topup-amount').value);
+            let code = document.getElementById('new-topup-code').value.trim();
+            if (isNaN(amount) || amount < 1 || !code) {
+                alert("Jumlah koin dan kode top-up harus valid!");
+                return;
+            }
+
+            if (topupCodes.some(c => c.code === code)) {
+                alert("Kode top-up sudah ada!");
+                return;
+            }
+
+            topupCodes.push({ amount, code, used: false });
+            localStorage.setItem('topupCodes', JSON.stringify(topupCodes));
+            updateAllLists();
+            document.getElementById('new-topup-amount').value = '';
+            document.getElementById('new-topup-code').value = '';
+            alert("Opsi top-up berhasil ditambahkan!");
+        }
+
+        function deleteTopupCode() {
+            let code = document.getElementById('delete-topup-select').value;
+            if (!confirm(`Yakin ingin menghapus kode top-up "${code}"?`)) return;
+
+            topupCodes = topupCodes.filter(c => c.code !== code);
+            localStorage.setItem('topupCodes', JSON.stringify(topupCodes));
+            updateAllLists();
+            alert("Kode top-up berhasil dihapus!");
+        }
+
+        // --- Fungsi untuk Event ---
+
+        function updateEventList() {
+            let eventList = document.getElementById('event-list');
+            eventList.innerHTML = '';
+            if (events.length === 0) {
+                let li = document.createElement('li');
+                li.textContent = 'Belum ada event.';
+                eventList.appendChild(li);
+            } else {
+                events.forEach(event => {
+                    let li = document.createElement('li');
+                    li.textContent = `${event.name}: ${event.prize} (${event.task}, Target: ${event.target})`;
+                    eventList.appendChild(li);
+                });
+            }
+        }
+
+        function updateEventSelect() {
+            let select = document.getElementById('edit-event-select');
+            select.innerHTML = '';
+            events.forEach(event => {
+                let option = document.createElement('option');
+                option.value = event.id;
+                option.textContent = event.name;
+                select.appendChild(option);
+            });
+        }
+
+        function updateDeleteEventSelect() {
+            let select = document.getElementById('delete-event-select');
+            select.innerHTML = '';
+            events.forEach(event => {
+                let option = document.createElement('option');
+                option.value = event.id;
+                option.textContent = event.name;
+                select.appendChild(option);
+            });
+        }
+
+        function addEvent() {
+            let name = document.getElementById('new-event-name').value.trim();
+            let desc = document.getElementById('new-event-desc').value.trim();
+            let prize = document.getElementById('new-event-prize').value.trim();
+            let task = document.getElementById('new-event-task').value.trim();
+            let target = parseInt(document.getElementById('new-event-target').value);
+            if (!name || !desc || !prize || !task || isNaN(target) || target < 1) {
+                alert("Semua kolom event harus valid!");
+                return;
+            }
+
+            let id = events.length > 0 ? Math.max(...events.map(e => e.id)) + 1 : 1;
+            events.push({ id, name, description: desc, prize, task, target });
+            localStorage.setItem('events', JSON.stringify(events));
+            updateAllLists();
+            document.getElementById('new-event-name').value = '';
+            document.getElementById('new-event-desc').value = '';
+            document.getElementById('new-event-prize').value = '';
+            document.getElementById('new-event-task').value = '';
+            document.getElementById('new-event-target').value = '';
+            alert("Event berhasil ditambahkan!");
+        }
+
+        function updateEvent() {
+            let id = parseInt(document.getElementById('edit-event-select').value);
+            let name = document.getElementById('edit-event-name').value.trim();
+            let desc = document.getElementById('edit-event-desc').value.trim();
+            let prize = document.getElementById('edit-event-prize').value.trim();
+            let task = document.getElementById('edit-event-task').value.trim();
+            let target = parseInt(document.getElementById('edit-event-target').value);
+            if (!name || !desc || !prize || !task || isNaN(target) || target < 1) {
+                alert("Semua kolom event harus valid!");
+                return;
+            }
+
+            events = events.map(event => 
+                event.id === id ? { id, name, description: desc, prize, task, target } : event
+            );
+            localStorage.setItem('events', JSON.stringify(events));
+            updateAllLists();
+            document.getElementById('edit-event-name').value = '';
+            document.getElementById('edit-event-desc').value = '';
+            document.getElementById('edit-event-prize').value = '';
+            document.getElementById('edit-event-task').value = '';
+            document.getElementById('edit-event-target').value = '';
+            alert("Event berhasil diperbarui!");
+        }
+
+        function deleteEvent() {
+            let id = parseInt(document.getElementById('delete-event-select').value);
+            if (!confirm(`Yakin ingin menghapus event "${events.find(e => e.id === id).name}"?`)) return;
+
+            events = events.filter(event => event.id !== id);
+            let eventProgress = JSON.parse(localStorage.getItem('eventProgress')) || {};
+            delete eventProgress[id];
+            localStorage.setItem('events', JSON.stringify(events));
+            localStorage.setItem('eventProgress', JSON.stringify(eventProgress));
+            updateAllLists();
+            alert("Event berhasil dihapus!");
+        }
+
+        // --- Fungsi untuk Pesan ---
+
+        function updateMessageList() {
+            let messageList = document.getElementById('message-list');
+            messageList.innerHTML = '';
+            if (messages.length === 0) {
+                let li = document.createElement('li');
+                li.textContent = 'Belum ada pesan.';
+                messageList.appendChild(li);
+            } else {
+                messages.forEach(message => {
+                    let li = document.createElement('li');
+                    li.textContent = `${message.title}: ${message.content} (${message.timestamp}, ${message.read ? 'Dibaca' : 'Belum Dibaca'})`;
+                    messageList.appendChild(li);
+                });
+            }
+        }
+
+        function updateMessageSelect() {
+            let select = document.getElementById('edit-message-select');
+            select.innerHTML = '';
+            messages.forEach(message => {
+                let option = document.createElement('option');
+                option.value = message.id;
+                option.textContent = message.title;
+                select.appendChild(option);
+            });
+        }
+
+        function updateDeleteMessageSelect() {
+            let select = document.getElementById('delete-message-select');
+            select.innerHTML = '';
+            messages.forEach(message => {
+                let option = document.createElement('option');
+                option.value = message.id;
+                option.textContent = message.title;
+                select.appendChild(option);
+            });
+        }
+
+        function addMessage() {
+            let title = document.getElementById('new-message-title').value.trim();
+            let content = document.getElementById('new-message-content').value.trim();
+            if (!title || !content) {
+                alert("Judul dan isi pesan harus valid!");
+                return;
+            }
+
+            let id = messages.length > 0 ? Math.max(...messages.map(m => m.id)) + 1 : 1;
+            let timestamp = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
+            messages.push({ id, title, content, timestamp, read: false });
+            localStorage.setItem('messages', JSON.stringify(messages));
+            updateAllLists();
+            document.getElementById('new-message-title').value = '';
+            document.getElementById('new-message-content').value = '';
+            alert("Pesan berhasil ditambahkan!");
+        }
+
+        function updateMessage() {
+            let id = parseInt(document.getElementById('edit-message-select').value);
+            let title = document.getElementById('edit-message-title').value.trim();
+            let content = document.getElementById('edit-message-content').value.trim();
+            if (!title || !content) {
+                alert("Judul dan isi pesan harus valid!");
+                return;
+            }
+
+            let timestamp = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
+            messages = messages.map(message => 
+                message.id === id ? { id, title, content, timestamp, read: message.read } : message
+            );
+            localStorage.setItem('messages', JSON.stringify(messages));
+            updateAllLists();
+            document.getElementById('edit-message-title').value = '';
+            document.getElementById('edit-message-content').value = '';
+            alert("Pesan berhasil diperbarui!");
+        }
+
+        function deleteMessage() {
+            let id = parseInt(document.getElementById('delete-message-select').value);
+            if (!confirm(`Yakin ingin menghapus pesan "${messages.find(m => m.id === id).title}"?`)) return;
+
+            messages = messages.filter(message => message.id !== id);
+            localStorage.setItem('messages', JSON.stringify(messages));
+            updateAllLists();
+            alert("Pesan berhasil dihapus!");
+        }
+
+        // --- Fungsi untuk Kode Redeem ---
+
+        function updateRedeemCodeList() {
+            let codeList = document.getElementById('redeem-code-list');
+            codeList.innerHTML = '';
+            if (redeemCodes.length === 0) {
+                let li = document.createElement('li');
+                li.textContent = 'Belum ada kode redeem.';
+                codeList.appendChild(li);
+            } else {
+                redeemCodes.forEach(code => {
+                    let li = document.createElement('li');
+                    li.textContent = `${code.code}: ${code.prize} (${code.used ? 'Sudah Digunakan' : 'Aktif'})`;
+                    codeList.appendChild(li);
+                });
+            }
+        }
+
+        function updateRedeemSelect() {
+            let select = document.getElementById('edit-redeem-select');
+            select.innerHTML = '';
+            redeemCodes.forEach(code => {
+                let option = document.createElement('option');
+                option.value = code.code;
+                option.textContent = `${code.code}: ${code.prize}`;
+                select.appendChild(option);
+            });
+        }
+
+        function updateDeleteRedeemSelect() {
+            let select = document.getElementById('delete-redeem-select');
+            select.innerHTML = '';
+            redeemCodes.forEach(code => {
+                let option = document.createElement('option');
+                option.value = code.code;
+                option.textContent = `${code.code}: ${code.prize}`;
+                select.appendChild(option);
+            });
+        }
+
+        function addRedeemCode() {
+            let code = document.getElementById('new-redeem-code').value.trim();
+            let prize = document.getElementById('new-redeem-prize').value.trim();
+            if (!code || !prize) {
+                alert("Kode redeem dan hadiah harus valid!");
+                return;
+            }
+
+            if (redeemCodes.some(c => c.code === code)) {
+                alert("Kode redeem sudah ada!");
+                return;
+            }
+
+            redeemCodes.push({ code, prize, used: false });
+            localStorage.setItem('redeemCodes', JSON.stringify(redeemCodes));
+            updateAllLists();
+            document.getElementById('new-redeem-code').value = '';
+            document.getElementById('new-redeem-prize').value = '';
+            alert("Kode redeem berhasil ditambahkan!");
+        }
+
+        function updateRedeemCode() {
+            let oldCode = document.getElementById('edit-redeem-select').value;
+            let newCode = document.getElementById('edit-redeem-code').value.trim();
+            let prize = document.getElementById('edit-redeem-prize').value.trim();
+            if (!newCode || !prize) {
+                alert("Kode redeem baru dan hadiah harus valid!");
+                return;
+            }
+
+            if (redeemCodes.some(c => c.code === newCode && c.code !== oldCode)) {
+                alert("Kode redeem sudah ada!");
+                return;
+            }
+
+            redeemCodes = redeemCodes.map(code => 
+                code.code === oldCode ? { code: newCode, prize, used: code.used } : code
+            );
+            localStorage.setItem('redeemCodes', JSON.stringify(redeemCodes));
+            updateAllLists();
+            document.getElementById('edit-redeem-code').value = '';
+            document.getElementById('edit-redeem-prize').value = '';
+            alert("Kode redeem berhasil diperbarui!");
+        }
+
+        function deleteRedeemCode() {
+            let code = document.getElementById('delete-redeem-select').value;
+            if (!confirm(`Yakin ingin menghapus kode redeem "${code}"?`)) return;
+
+            redeemCodes = redeemCodes.filter(c => c.code !== code);
+            localStorage.setItem('redeemCodes', JSON.stringify(redeemCodes));
+            updateAllLists();
+            alert("Kode redeem berhasil dihapus!");
+        }
+    </script>
+</body>
+</html>
